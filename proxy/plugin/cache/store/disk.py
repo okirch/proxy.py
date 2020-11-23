@@ -38,6 +38,7 @@ class OnDiskCacheStore(CacheStore):
         self.cache_dir = cache_dir
         self.cache_file_path: Optional[str] = None
         self.cache_file: Optional[BinaryIO] = None
+        self.url = None
 
     def open(self, request: HttpParser) -> None:
         self.cache_file_path = os.path.join(
@@ -46,6 +47,7 @@ class OnDiskCacheStore(CacheStore):
         self.cache_file = open(self.cache_file_path, "wb")
 
     def cache_request(self, request: HttpParser) -> Optional[HttpParser]:
+        self.url = request.url
         return request
 
     def cache_response_chunk(self, chunk: memoryview) -> memoryview:
@@ -56,4 +58,6 @@ class OnDiskCacheStore(CacheStore):
     def close(self) -> None:
         if self.cache_file:
             self.cache_file.close()
+            if self.url:
+                logger.info("Request URL was %s" % str(self.url))
             logger.info('Cached response at %s', self.cache_file_path)

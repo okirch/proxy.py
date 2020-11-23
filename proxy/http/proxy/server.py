@@ -432,7 +432,7 @@ class HttpProxyPlugin(HttpProtocolHandlerPlugin):
     #
 
     def gen_ca_signed_certificate(
-            self, cert_file_path: str, certificate: Dict[str, Any]) -> None:
+            self, cert_file_path: str, request_host: str, certificate: Dict[str, Any]) -> None:
         '''CA signing key (default) is used for generating a public key
         for common_name, if one already doesn't exist.  Using generated
         public key a CSR request is generated, which is then signed by
@@ -445,7 +445,7 @@ class HttpProxyPlugin(HttpProtocolHandlerPlugin):
 
         upstream_subject = {s[0][0]: s[0][1] for s in certificate['subject']}
         public_key_path = os.path.join(self.flags.ca_cert_dir,
-                                       '{0}.{1}'.format(text_(self.request.host), 'pub'))
+                                       '{0}.{1}'.format(request_host, 'pub'))
         private_key_path = self.flags.ca_signing_key_file
         private_key_password = ''
 
@@ -463,7 +463,7 @@ class HttpProxyPlugin(HttpProtocolHandlerPlugin):
             if upstream_subject.get(keys[key], None):
                 subject += '/{0}={1}'.format(key,
                                              upstream_subject.get(keys[key]))
-        alt_subj_names = [text_(self.request.host), ]
+        alt_subj_names = [request_host, ]
         validity_in_days = 365 * 2
         timeout = 10
 
@@ -476,7 +476,7 @@ class HttpProxyPlugin(HttpProtocolHandlerPlugin):
             assert(resp is True)
 
         csr_path = os.path.join(self.flags.ca_cert_dir,
-                                '{0}.{1}'.format(text_(self.request.host), 'csr'))
+                                '{0}.{1}'.format(request_host, 'csr'))
 
         # Generate a CSR request for this common name
         if not os.path.isfile(csr_path):
@@ -512,11 +512,19 @@ class HttpProxyPlugin(HttpProtocolHandlerPlugin):
                 f'--ca-cert-file:{ self.flags.ca_cert_file }, '
                 f'--ca-key-file:{ self.flags.ca_key_file }, '
                 f'--ca-signing-key-file:{ self.flags.ca_signing_key_file }')
+
+        # We may have redirected the request to a different host.
+        # In order to show the correct FQDN in subjectAltName, we need
+        # to use that name rather than the one redirected to.
+        hostname = text_(getattr(self.request, 'orig_request_host', None))
+        if hostname is None:
+            hostname = text_(self.request.host)
+
         cert_file_path = HttpProxyPlugin.generated_cert_file_path(
-            self.flags.ca_cert_dir, text_(self.request.host))
+            self.flags.ca_cert_dir, hostname)
         with self.lock:
             if not os.path.isfile(cert_file_path):
-                self.gen_ca_signed_certificate(cert_file_path, certificate)
+                self.gen_ca_signed_certificate(cert_file_path, hostname, certificate)
         return cert_file_path
 
     def intercept(self) -> Union[socket.socket, bool]:
