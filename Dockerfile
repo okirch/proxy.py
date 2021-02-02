@@ -24,5 +24,17 @@ COPY --from=builder /deps /usr/local
 RUN apk update && apk add openssl
 
 EXPOSE 8899/tcp
-ENTRYPOINT [ "proxy" ]
-CMD [ "--hostname=0.0.0.0" ]
+
+RUN mkdir -p /srv/proxy
+CMD [ "proxy", \
+	"--hostname=0.0.0.0", \
+	"--plugins=proxy.plugin.CacheResponsesPlugin,proxy.plugin.RedirectMapPlugin", \
+	"--ca-key-file=/srv/proxy/ca-key.pem", \
+	"--ca-cert-file=/srv/proxy/ca-cert.pem", \
+	"--ca-signing-key-file=/srv/proxy/ca-signing-key.pem", \
+	"--ca-file=/srv/proxy/ca-bundle.pem", \
+	"--log-level=info", \
+	"--cache-dir=/srv/proxy/cache", \
+        "--ca-cert-dir=/srv/proxy/mycerts" \
+]
+
